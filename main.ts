@@ -1,134 +1,107 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
 
-// Remember to rename these classes and interfaces!
-
-interface MyPluginSettings {
-	mySetting: string;
+interface TimestampSettings {
+    timestampFormat: string;
+    timestampStyle: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: TimestampSettings = {
+    timestampFormat: 'YYYY-MM-DD HH:mm:ss',
+    timestampStyle: '{timestamp}' // Using {timestamp} as a placeholder
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class TimestampPlugin extends Plugin {
+    settings: TimestampSettings;
 
-	async onload() {
-		await this.loadSettings();
+    async onload() {
+        await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
+        // Add settings tab
+        this.addSettingTab(new TimestampSettingTab(this.app, this));
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
+        // Register the event handler for editor changes
+        this.registerEvent(
+            this.app.workspace.on('editor-change', async (editor: Editor, view: MarkdownView) => {
+                if (!view) return;
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
+                const file = view.file;
+                if (!file) return;
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
-		});
+                // Check if the file has the timestamps frontmatter
+                const content = await this.app.vault.read(file);
+                if (!content.includes('timestamps: true')) return;
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+                // Get the current cursor position
+                const cursor = editor.getCursor();
+                if (!cursor) return;
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
+                // Get the current line
+                const line = editor.getLine(cursor.line);
+                
+                // Only add timestamp if we're at the start of a new line
+                if (cursor.ch === 0 && line.trim() === '') {
+                    const timestamp = this.getFormattedTimestamp();
+                    const formattedTimestamp = this.formatTimestamp(timestamp);
+                    editor.replaceRange(formattedTimestamp + ' ', cursor);
+                    // Move cursor after the timestamp
+                    editor.setCursor({ line: cursor.line, ch: formattedTimestamp.length + 1 });
+                }
+            })
+        );
+    }
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-	}
+    async loadSettings() {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    }
 
-	onunload() {
+    async saveSettings() {
+        await this.saveData(this.settings);
+    }
 
-	}
+    getFormattedTimestamp(): string {
+        const now = new Date();
+        return now.toISOString()
+            .replace('T', ' ')
+            .replace(/\.\d+Z$/, '');
+    }
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+    formatTimestamp(timestamp: string): string {
+        return this.settings.timestampStyle.replace('{timestamp}', timestamp);
+    }
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+class TimestampSettingTab extends PluginSettingTab {
+    plugin: TimestampPlugin;
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+    constructor(app: App, plugin: TimestampPlugin) {
+        super(app, plugin);
+        this.plugin = plugin;
+    }
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
+    display(): void {
+        const { containerEl } = this;
+        containerEl.empty();
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+        containerEl.createEl('h2', { text: 'Timestamp Settings' });
 
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
+        new Setting(containerEl)
+            .setName('Timestamp Format')
+            .setDesc('The format for timestamps (using ISO 8601)')
+            .addText(text => text
+                .setValue(this.plugin.settings.timestampFormat)
+                .onChange(async (value) => {
+                    this.plugin.settings.timestampFormat = value;
+                    await this.plugin.saveSettings();
+                }));
 
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
-}
+        new Setting(containerEl)
+            .setName('Timestamp Style')
+            .setDesc('How to format the timestamp. Use {timestamp} as a placeholder. Examples: [{timestamp}] or %%{timestamp}%%')
+            .addText(text => text
+                .setValue(this.plugin.settings.timestampStyle)
+                .onChange(async (value) => {
+                    this.plugin.settings.timestampStyle = value;
+                    await this.plugin.saveSettings();
+                }));
+    }
+} 
