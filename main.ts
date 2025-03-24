@@ -52,6 +52,7 @@ export default class TimestampPlugin extends Plugin {
 
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        console.log('Loaded settings:', this.settings);
     }
 
     async saveSettings() {
@@ -60,9 +61,24 @@ export default class TimestampPlugin extends Plugin {
 
     getFormattedTimestamp(): string {
         const now = new Date();
-        return now.toISOString()
-            .replace('T', ' ')
-            .replace(/\.\d+Z$/, '');
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+
+        const formatted = this.settings.timestampFormat
+            .replace('YYYY', String(year))
+            .replace('MM', month)
+            .replace('DD', day)
+            .replace('HH', hours)
+            .replace('mm', minutes)
+            .replace('ss', seconds);
+            
+        console.log('Format:', this.settings.timestampFormat);
+        console.log('Formatted result:', formatted);
+        return formatted;
     }
 
     formatTimestamp(timestamp: string): string {
