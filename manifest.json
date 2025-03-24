@@ -1,9 +1,9 @@
 {
     "id": "obsidian-timestamp-plugin",
-    "name": "Timestamp Plugin",
+    "name": "Timestamp New Line Plugin",
     "version": "1.0.0",
     "minAppVersion": "0.15.0",
     "description": "Automatically adds timestamps to new lines in notes with 'timestamps: true' frontmatter",
-    "author": "Your Name",
+    "author": "Geffrey van der Bos",
     "isDesktopOnly": false
 } 

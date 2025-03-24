@@ -8,7 +8,6 @@ This plugin automatically adds timestamps to new lines in your Obsidian notes wh
 - Customizable timestamp format and style
 - Timestamps appear automatically on new lines
 - Non-intrusive - only affects notes where you explicitly enable it
-- Modern TypeScript implementation
 
 ## Installation
 
